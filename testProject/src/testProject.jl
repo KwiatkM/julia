@@ -1,23 +1,32 @@
 module testProject
 
-abstract type Node end
 
-# ConstantNode i VariableNode mogą być tylko liścmi grafu
-
-struct ConstantNode{F} <: Node
-    value::F
-end
-
-mutable struct VariableNode{F} <: Node
-    value :: F
-    grad :: F
-end
-
-mutable struct OperatorNode{F} <: Node
-    value :: F
-    grad :: F 
+mutable struct Node{T}
+    hasGrad :: Bool
+    value :: T
+    grad :: T 
     parents :: Vector{Node}
-    vjp :: Function
+    back :: Function # funkcja do liczenia gradientu przy przejściu wstecznym
+
+    # hasGrad = true -> Variable
+    # hasGard = false -> constant
+    function Node(value::T, hasGrad::Bool) where T
+        return new{T}(  hasGrad,
+                        value,
+                        zero(value),
+                        Node[],
+                        () -> nothing)
+    end
+
+    # operator
+    function Node(value::T, parents::Vector{Node{T}}, back::Function) where T
+        return new{T}(  true,
+                        value,
+                        zero(value),
+                        parents,
+                        back)
+    end
+
 end
 
 
@@ -29,35 +38,33 @@ Base.show(io::IO, p::Node) = print(io, "(v=$(p.value), type=", typeof(p),")")
 
 import Base: +, -, *, /, sin
 
-function +(x::Node, y::Node)
-        newNode = OperatorNode{Float64}(x.value + y.value,0., [x,y], function ()
-        if typeof(x) != ConstantNode x.grad += newNode.grad end
-        if typeof(y) != ConstantNode y.grad += newNode.grad end
+function +(x::Node{<:Real}, y::Node{<:Real})
+        newNode = Node(x.value + y.value, [x,y], function ()
+            x.grad += newNode.grad
+            b.grad += newNode.grad
     end)
-    println(newNode)
     return newNode
 end
 
-function *(x::Node, y::Node)
-    newNode = OperatorNode{Float64}(x.value * y.value,0., [x,y], function ()
-        if typeof(x) != ConstantNode x.grad += y.value * newNode.grad end
-        if typeof(y) != ConstantNode y.grad += x.value * newNode.grad end
+
+
+function *(x::Node{<:Real}, y::Node{<:Real})
+    newNode = Node(x.value * y.value, [x,y], function ()
+        x.grad += y.value * newNode.grad
+        y.grad += x.value * newNode.grad
     end)
-    println(newNode)
     return newNode
 end
 
 function sin(x::Node)
-    newNode = OperatorNode{Float64}(sin(x.value),0., [x], function ()
-        if typeof(x) != ConstantNode x.grad = cos(x.value) * newNode.grad end
+    newNode = Node(sin(x.value), [x], function ()
+        x.grad = cos(x.value) * newNode.grad
     end)
-    println(newNode)
     return newNode
 end
 
 
 function topo_sort(head::Node)
-    
     visited::Set{Node} = Set()
     order::Vector{Node} = Vector()
     visit(head,visited,order)
@@ -65,7 +72,7 @@ function topo_sort(head::Node)
 end
 
 function visit(head::Node,visited::Set{Node},order::Vector{Node})
-    if head isa OperatorNode 
+    if head.hasGrad
 
         if head ∉ visited
             push!(visited,head)
@@ -77,32 +84,29 @@ function visit(head::Node,visited::Set{Node},order::Vector{Node})
     end
 end
 
-function backward(head::OperatorNode{Float64},order::Vector{Node})
+function backward(head::Node,order::Vector{Node})
     reset(head)
-    head.grad = 1.
+    if head.grad isa Real
+        head.grad = one(head.grad) # seed for scalars
+    else
+        head.grad = ones(size(head.value)) # seed for arrays and matrices
+    end
     for n in reverse(order)
-        n.vjp()
+        n.back()
     end
 end
 
-function reset(head::OperatorNode{Float64})
-    head.grad = 0.
-    for p in head.parents
-        reset(p)
+function reset(head::Node)
+    if head.hasGrad
+        head.grad = zero(head.grad)
+        for p in head.parents
+            reset(p)
+        end
     end
 end
 
-function reset(head::VariableNode{Float64})
-    head.grad = 0.
-end
 
-function reset(head::ConstantNode{Float64})
-    nothing
-end
-
-
-
-x = VariableNode{Float64}(5.,0.)
+x = Node(5., true)
 
 f = sin(x*x)
 
