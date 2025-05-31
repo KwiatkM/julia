@@ -19,7 +19,7 @@ mutable struct Node{T}
     end
 
     # operator
-    function Node(value::T, parents::Vector{Node{T}}, back::Function) where T
+    function Node(value::T, parents::Vector{<:Node}, back::Function) where T
         return new{T}(  true,
                         value,
                         zero(value),
@@ -33,10 +33,10 @@ end
 Base.show(io::IO, p::Node) = print(io, "(v=$(p.value), type=", typeof(p),")")
 
 # --------------------------------------------
-#           Podstawowe operacje
+#           Basic operations
 # --------------------------------------------
 
-import Base: +, -, *, /, sin
+import Base: +, -, *, /, sin, sum
 
 function +(x::Node{<:Real}, y::Node{<:Real})
         newNode = Node(x.value + y.value, [x,y], function ()
@@ -46,7 +46,17 @@ function +(x::Node{<:Real}, y::Node{<:Real})
     return newNode
 end
 
+function +(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
+        newNode = Node(x.value + y.value, [x,y], function ()
+            x.grad += newNode.grad
+            b.grad += newNode.grad
+    end)
+    return newNode
+end
 
+# --------------------------------------------------
+# 
+# --------------------------------------------------
 
 function *(x::Node{<:Real}, y::Node{<:Real})
     newNode = Node(x.value * y.value, [x,y], function ()
@@ -56,12 +66,56 @@ function *(x::Node{<:Real}, y::Node{<:Real})
     return newNode
 end
 
-function sin(x::Node)
+function *(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
+    newNode = Node(x.value * y.value, [x,y], function ()
+        x.grad += newNode.grad * y.value'
+        y.grad += x.value' * newNode.grad
+    end)
+    return newNode
+end
+
+function mult_ew(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
+    newNode = Node(x.value .* y.value, [x,y], function ()
+        x.grad += newNode.grad .* y.value
+        y.grad += newNode.grad .* x.value
+    end)
+    return newNode
+end
+
+# --------------------------------------------------
+# 
+# --------------------------------------------------
+
+function sin(x::Node{<:Real})
     newNode = Node(sin(x.value), [x], function ()
         x.grad = cos(x.value) * newNode.grad
     end)
     return newNode
 end
+
+function sin(x::Node{<:AbstractArray})
+    newNode = Node(sin(x.value), [x], function ()
+        x.grad = cos(x.value) .* newNode.grad
+    end)
+    return newNode
+end
+
+# --------------------------------------------------
+# 
+# --------------------------------------------------
+
+function sum(x::Node{<:AbstractArray})
+    newNode = Node(sum(x.value), [x], function ()
+        x.grad .+= newNode.grad
+    end)
+    return newNode
+end
+
+# --------------------------------------------------
+# 
+# --------------------------------------------------
+
+
 
 
 function topo_sort(head::Node)
@@ -106,20 +160,30 @@ function reset(head::Node)
 end
 
 
-x = Node(5., true)
+# x = Node(5., true)
 
-f = sin(x*x)
+# f = sin(x*x)
 
-order = topo_sort(f)
+# order = topo_sort(f)
 
-println("\nResult: ",f)
-println("Order: ", order)
+# # println("\nResult: ",f)
+# # println("Order: ", order)
 
-backward(f,order)
+# backward(f,order)
+# println("x grad = ", x.grad)
+
+W = Node([1.0 2.0; 3.0 4.0],true)  # wagi 2x2
+x = Node([0.5, 1.5],false)          # wektor wejściowy 2x1
+b = Node([0.1, 0.2],true)          # bias 2x1
+
+y = W * x + b
+
+loss = sum(mult_ew(y,y))
+
+order = topo_sort(loss)
+backward(loss,order)
 println("x grad = ", x.grad)
-
-backward(f,order)
+backward(loss,order)
 println("x grad = ", x.grad)
-
 # println("\nend of test")
 end # module testProject
