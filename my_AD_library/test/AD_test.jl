@@ -110,3 +110,25 @@ println("    grad: ",x7.grad)
 println("sigm")
 println("   value: ",f8.value)
 println("    grad: ",x8.grad)
+
+# test 2.4: ∑(W * x + b) forward function
+W9 = Node([1. 2.; 3. 4.],true)
+x9 = Node([0.5, 1.5],true)         
+b9 = Node([0.1, 0.2],true)          
+
+f9 = sum(W9 * x9 + b9)
+order9 = topo_sort(f9)
+backward(f9,order9)
+
+W_ = [1. 2.; 3. 4.]
+b_ = [0.1, 0.2]
+x_ = [4.1, 9.12]
+g9(X) = sum(W_ * X + b_)
+
+x9.value = [4.1, 9.12]
+forward(f9)
+backward(f9,order9)
+
+println("--- test 2.4 ---")
+println("my_library: value=", f9.value, ", grad=", x9.grad)
+println("    zygote: value=", g9(x_), ", grad=", g9'(x_))

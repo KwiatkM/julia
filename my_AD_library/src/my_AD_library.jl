@@ -49,7 +49,7 @@ import Base: +, -, *, /, sin, cos, tan, tanh, sum
 
 function +(x::Node{<:Real}, y::Node{<:Real})
         newNode = Node(x.value + y.value, [x,y],function ()
-            newNode.value = newNode.parents.value[1] + newNode.parents.value[2] 
+            newNode.value = newNode.parents[1].value + newNode.parents[2].value 
         end,
             function ()
             if x.hasGrad x.grad += newNode.grad end
@@ -60,7 +60,7 @@ end
 
 function +(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
         newNode = Node(x.value + y.value, [x,y],function ()
-            newNode.value = newNode.parents.value[1] + newNode.parents.value[2] 
+            newNode.value = newNode.parents[1].value + newNode.parents[2].value 
         end,
             function ()
             if x.hasGrad x.grad += newNode.grad end
@@ -75,7 +75,7 @@ end
 
 function -(x::Node{<:Real}, y::Node{<:Real})
         newNode = Node(x.value - y.value, [x,y],function ()
-            newNode.value = newNode.parents.value[1] - newNode.parents.value[2] 
+            newNode.value = newNode.parents[1].value - newNode.parents[2].value 
         end, 
         function ()
             if x.hasGrad x.grad += newNode.grad end
@@ -86,7 +86,7 @@ end
 
 function -(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
         newNode = Node(x.value - y.value, [x,y],function ()
-            newNode.value = newNode.parents.value[1] - newNode.parents.value[2] 
+            newNode.value = newNode.parents[1].value - newNode.parents[2].value 
         end, 
         function ()
             if x.hasGrad x.grad += newNode.grad end
@@ -97,7 +97,7 @@ end
 
 function -(x::Node{<:Real})
         newNode = Node(-x.value, [x],function ()
-            newNode.value = -newNode.parents.value[1]
+            newNode.value = -newNode.parents[1].value
         end,  function ()
             if x.hasGrad x.grad -= newNode.grad end
 
@@ -107,7 +107,7 @@ end
 
 function -(x::Node{<:AbstractArray})
         newNode = Node(-x.value, [x],function ()
-            newNode.value = -newNode.parents.value[1]
+            newNode.value = -newNode.parents[1].value
         end, function ()
             if x.hasGrad x.grad -= newNode.grad end
 
@@ -121,7 +121,7 @@ end
 
 function *(x::Node{<:Real}, y::Node{<:Real})
     newNode = Node(x.value * y.value, [x,y],function ()
-            newNode.value = newNode.parents.value[1] * newNode.parents.value[2] 
+            newNode.value = newNode.parents[1].value * newNode.parents[2].value 
         end, 
         function ()
         if x.hasGrad x.grad += y.value * newNode.grad end
@@ -132,7 +132,7 @@ end
 
 function *(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
     newNode = Node(x.value * y.value, [x,y],function ()
-            newNode.value = newNode.parents.value[1] * newNode.parents.value[2] 
+            newNode.value = newNode.parents[1].value * newNode.parents[2].value 
         end, 
         function ()
         if x.hasGrad x.grad += newNode.grad * y.value' end
@@ -144,7 +144,7 @@ end
 
 function Broadcast.broadcasted(::typeof(*), x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
     newNode = Node(x.value .* y.value, [x,y],function ()
-            newNode.value = newNode.parents.value[1] .* newNode.parents.value[2] 
+            newNode.value = newNode.parents[1].value .* newNode.parents[2].value 
         end, 
         function ()
         if x.hasGrad x.grad += newNode.grad .* y.value end
@@ -159,7 +159,7 @@ end
 
 function sin(x::Node{<:Real})
     newNode = Node(sin(x.value), [x],function ()
-            newNode.value = sin(newNode.parents.value[1])
+            newNode.value = sin(newNode.parents[1].value)
         end,
         function ()
         if x.hasGrad x.grad += cos(x.value) * newNode.grad end
@@ -169,7 +169,7 @@ end
 
 function sin(x::Node{<:AbstractArray})
     newNode = Node(sin.(x.value), [x],function ()
-            newNode.value = sin.(newNode.parents.value[1])
+            newNode.value = sin.(newNode.parents[1].value)
         end,
         function ()
         if x.hasGrad x.grad .+= cos.(x.value) .* newNode.grad end
@@ -179,7 +179,7 @@ end
 
 function cos(x::Node{<:Real})
     newNode = Node(cos(x.value), [x],function ()
-            newNode.value = cos(newNode.parents.value[1])
+            newNode.value = cos(newNode.parents[1].value)
         end,
         function ()
         if x.hasGrad x.grad -= sin(x.value) * newNode.grad end
@@ -189,7 +189,7 @@ end
 
 function cos(x::Node{<:AbstractArray})
     newNode = Node(cos.(x.value), [x],function ()
-            newNode.value = cos.(newNode.parents.value[1])
+            newNode.value = cos.(newNode.parents[1].value)
         end,
          function ()
         if x.hasGrad x.grad .-= sin.(x.value) .* newNode.grad end
@@ -199,7 +199,7 @@ end
 
 function tan(x::Node{<:Real})
     newNode = Node(tan(x.value), [x],function ()
-            newNode.value = tan(newNode.parents.value[1])
+            newNode.value = tan(newNode.parents[1].value)
         end,
          function ()
         if x.hasGrad x.grad += 1 / (cos(x.value)^2) * newNode.grad end
@@ -209,7 +209,7 @@ end
 
 function tan(x::Node{<:AbstractArray})
     newNode = Node(tan.(x.value), [x],function ()
-            newNode.value = tan.(newNode.parents.value[1])
+            newNode.value = tan.(newNode.parents[1].value)
         end,
          function ()
         if x.hasGrad x.grad .+= 1 ./ (cos.(x.value).^2) .* newNode.grad end
@@ -224,7 +224,7 @@ end
 
 function tanh(x::Node{<:Real})
     newNode = Node(tanh(x.value), [x],function ()
-            newNode.value = tanh(newNode.parents.value[1])
+            newNode.value = tanh(newNode.parents[1].value)
         end,
          function ()
         if x.hasGrad x.grad += (1 - newNode.value^2) * newNode.grad end
@@ -235,7 +235,7 @@ end
 
 function tanh(x::Node{<:AbstractArray})
     newNode = Node(tanh.(x.value), [x],function ()
-            newNode.value = tanh.(newNode.parents.value[1])
+            newNode.value = tanh.(newNode.parents[1].value)
         end,
          function ()
         if x.hasGrad x.grad .+= (1 .- newNode.value.^2) .* newNode.grad end
@@ -245,7 +245,7 @@ end
 
 function sigm(x::Node{<:Real})
     newNode = Node(1/(1+ℯ^x.value), [x],function ()
-            newNode.value = 1/(1+ℯ^newNode.parents.value[1])
+            newNode.value = 1/(1+ℯ^newNode.parents[1].value)
         end,
          function ()
         if x.hasGrad x.grad += newNode.value * (1-newNode.value) * newNode.grad end
@@ -255,7 +255,7 @@ end
 
 function sigm(x::Node{<:AbstractArray})
     newNode = Node(1 ./ (1 .+ ℯ.^x.value), [x],function ()
-            newNode.value = 1 ./(1 .+ℯ.^newNode.parents.value[1])
+            newNode.value = 1 ./(1 .+ℯ.^newNode.parents[1].value)
         end,
          function ()
         if x.hasGrad x.grad .+= newNode.value .* (1 .-newNode.value) .* newNode.grad end
@@ -265,7 +265,7 @@ end
 
 function ReLU(x::Node{<:Real})
     newNode = Node(max(0,x.value), [x],function ()
-            newNode.value = max(0,newNode.parents.value[1])
+            newNode.value = max(0,newNode.parents[1].value)
         end,
          function ()
         if x.hasGrad x.grad += x.value > zero(x.value) ? newNode.grad : zero(x.value) end
@@ -275,7 +275,7 @@ end
 
 function ReLU(x::Node{<:AbstractArray})
     newNode = Node(max.(0,x.value), [x],function ()
-            newNode.value = max.(0,newNode.parents.value[1])
+            newNode.value = max.(0,newNode.parents[1].value)
         end,
          function ()
         if x.hasGrad x.grad .+= ifelse.(x.value .> zero(x.value), x.value, zero(x.value)) end
@@ -291,7 +291,7 @@ end
 
 function sum(x::Node{<:AbstractArray})
     newNode = Node(sum(x.value), [x],function ()
-            newNode.value = sum(newNode.parents.value[1])
+            newNode.value = sum(newNode.parents[1].value)
         end,
          function ()
         if x.hasGrad x.grad .+= newNode.grad end
@@ -349,6 +349,15 @@ function reset(head::Node)
         for p in head.parents
             reset(p)
         end
+    end
+end
+
+function forward(head::Node)
+    if !isempty(head.parents)
+        for p in head.parents
+            forward(p)
+        end
+       head.forward()
     end
 end
 
