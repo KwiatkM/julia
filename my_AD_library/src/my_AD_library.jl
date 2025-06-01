@@ -9,7 +9,7 @@ mutable struct Node{T}
 
     # hasGrad = true -> Variable
     # hasGard = false -> constant
-    function Node(value::T, hasGrad::Bool) where T
+    function Node(value::T, hasGrad::Bool=true) where T
         return new{T}(  hasGrad,
                         value,
                         zero(value),

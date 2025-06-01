@@ -5,8 +5,10 @@ version = "0.1.0"
 
 [deps]
 IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
 IJulia = "1.27.0"
+JLD2 = "0.5.13"
 Zygote = "0.7.7"
