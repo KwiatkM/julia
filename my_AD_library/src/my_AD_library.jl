@@ -38,7 +38,7 @@ Base.show(io::IO, p::Node) = print(io, "(v=$(p.value), grad=$(p.grad))")
 # --------------------------------------------
 
 
-import Base: +, -, *, /, sin, sum
+import Base: +, -, *, /, sin, cos, tan, tanh, sum
 
 # --------------------------------------------
 #           Addition
@@ -60,14 +60,50 @@ function +(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
     return newNode
 end
 
+# --------------------------------------------
+#           Subtraction
+# --------------------------------------------
+
+function -(x::Node{<:Real}, y::Node{<:Real})
+        newNode = Node(x.value - y.value, [x,y], function ()
+            if x.hasGrad x.grad += newNode.grad end
+            if y.hasGrad y.grad -= newNode.grad end
+    end)
+    return newNode
+end
+
+function -(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
+        newNode = Node(x.value - y.value, [x,y], function ()
+            if x.hasGrad x.grad += newNode.grad end
+            if y.hasGrad y.grad -= newNode.grad end
+    end)
+    return newNode
+end
+
+function -(x::Node{<:Real})
+        newNode = Node(-x.value, [x], function ()
+            if x.hasGrad x.grad -= newNode.grad end
+
+    end)
+    return newNode
+end
+
+function -(x::Node{<:AbstractArray})
+        newNode = Node(-x.value, [x], function ()
+            if x.hasGrad x.grad -= newNode.grad end
+
+    end)
+    return newNode
+end
+
 # --------------------------------------------------
 #           Multiplication
 # --------------------------------------------------
 
 function *(x::Node{<:Real}, y::Node{<:Real})
     newNode = Node(x.value * y.value, [x,y], function ()
-        if x.hasGard x.grad += y.value * newNode.grad end
-        if y.hasGard y.grad += x.value * newNode.grad end
+        if x.hasGrad x.grad += y.value * newNode.grad end
+        if y.hasGrad y.grad += x.value * newNode.grad end
     end)
     return newNode
 end
@@ -80,7 +116,8 @@ function *(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
     return newNode
 end
 
-function mult_ew(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
+
+function Broadcast.broadcasted(::typeof(*), x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
     newNode = Node(x.value .* y.value, [x,y], function ()
         if x.hasGrad x.grad += newNode.grad .* y.value end
         if x.hasGrad y.grad += newNode.grad .* x.value end
@@ -94,17 +131,95 @@ end
 
 function sin(x::Node{<:Real})
     newNode = Node(sin(x.value), [x], function ()
-        if x.hasGrad x.grad = cos(x.value) * newNode.grad end
+        if x.hasGrad x.grad += cos(x.value) * newNode.grad end
     end)
     return newNode
 end
 
 function sin(x::Node{<:AbstractArray})
-    newNode = Node(sin(x.value), [x], function ()
-        if x.hasGrad x.grad = cos(x.value) .* newNode.grad end
+    newNode = Node(sin.(x.value), [x], function ()
+        if x.hasGrad x.grad .+= cos.(x.value) .* newNode.grad end
     end)
     return newNode
 end
+
+function cos(x::Node{<:Real})
+    newNode = Node(cos(x.value), [x], function ()
+        if x.hasGrad x.grad -= sin(x.value) * newNode.grad end
+    end)
+    return newNode
+end
+
+function cos(x::Node{<:AbstractArray})
+    newNode = Node(cos.(x.value), [x], function ()
+        if x.hasGrad x.grad .-= sin.(x.value) .* newNode.grad end
+    end)
+    return newNode
+end
+
+function tan(x::Node{<:Real})
+    newNode = Node(tan(x.value), [x], function ()
+        if x.hasGrad x.grad += 1 / (cos(x.value)^2) * newNode.grad end
+    end)
+    return newNode
+end
+
+function tan(x::Node{<:AbstractArray})
+    newNode = Node(tan.(x.value), [x], function ()
+        if x.hasGrad x.grad .+= 1 ./ (cos.(x.value).^2) .* newNode.grad end
+    end)
+    return newNode
+end
+
+
+# --------------------------------------------------
+#           activation functions
+# --------------------------------------------------
+
+function tanh(x::Node{<:Real})
+    newNode = Node(tanh(x.value), [x], function ()
+        if x.hasGrad x.grad += (1 - newNode.value^2) * newNode.grad end
+    end)
+
+    return newNode
+end
+
+function tanh(x::Node{<:AbstractArray})
+    newNode = Node(tanh.(x.value), [x], function ()
+        if x.hasGrad x.grad .+= (1 .- newNode.value.^2) .* newNode.grad end
+    end)
+    return newNode
+end
+
+function sigm(x::Node{<:Real})
+    newNode = Node(1/(1+ℯ^x.value), [x], function ()
+        if x.hasGrad x.grad += newNode.value * (1-newNode.value) * newNode.grad end
+    end)
+    return newNode
+end
+
+function sigm(x::Node{<:AbstractArray})
+    newNode = Node(1 ./ (1 .+ ℯ.^x.value), [x], function ()
+        if x.hasGrad x.grad .+= newNode.value .* (1 .-newNode.value) .* newNode.grad end
+    end)
+    return newNode
+end
+
+function ReLU(x::Node{<:Real})
+    newNode = Node(max(0,x.value), [x], function ()
+        if x.hasGrad x.grad += x.value > zero(x.value) ? newNode.grad : zero(x.value) end
+    end)
+    return newNode
+end
+
+function ReLU(x::Node{<:AbstractArray})
+    newNode = Node(max.(0,x.value), [x], function ()
+        if x.hasGrad x.grad .+= ifelse.(x.value .> zero(x.value), x.value, zero(x.value)) end
+    end)
+    return newNode
+end
+
+
 
 # --------------------------------------------------
 #           other
