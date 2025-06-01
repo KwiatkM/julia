@@ -6,7 +6,7 @@ mutable struct Node{T}
     value :: T
     grad :: T 
     parents :: Vector{Node}
-    back :: Function # funkcja do liczenia gradientu przy przejściu wstecznym
+    back :: Function
 
     # hasGrad = true -> Variable
     # hasGard = false -> constant
@@ -30,90 +30,96 @@ mutable struct Node{T}
 end
 
 
-Base.show(io::IO, p::Node) = print(io, "(v=$(p.value), type=", typeof(p),")")
+Base.show(io::IO, p::Node) = print(io, "(v=$(p.value), grad=$(p.grad))")
 
+# --------------------------------------------
 # --------------------------------------------
 #           Basic operations
 # --------------------------------------------
+# --------------------------------------------
+
 
 import Base: +, -, *, /, sin, sum
 
+# --------------------------------------------
+#           Addition
+# --------------------------------------------
+
 function +(x::Node{<:Real}, y::Node{<:Real})
         newNode = Node(x.value + y.value, [x,y], function ()
-            x.grad += newNode.grad
-            b.grad += newNode.grad
+            if x.hasGrad x.grad += newNode.grad end
+            if y.hasGrad y.grad += newNode.grad end
     end)
     return newNode
 end
 
 function +(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
         newNode = Node(x.value + y.value, [x,y], function ()
-            x.grad += newNode.grad
-            b.grad += newNode.grad
+            if x.hasGrad x.grad += newNode.grad end
+            if y.hasGrad y.grad += newNode.grad end
     end)
     return newNode
 end
 
 # --------------------------------------------------
-# 
+#           Multiplication
 # --------------------------------------------------
 
 function *(x::Node{<:Real}, y::Node{<:Real})
     newNode = Node(x.value * y.value, [x,y], function ()
-        x.grad += y.value * newNode.grad
-        y.grad += x.value * newNode.grad
+        if x.hasGard x.grad += y.value * newNode.grad end
+        if y.hasGard y.grad += x.value * newNode.grad end
     end)
     return newNode
 end
 
 function *(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
     newNode = Node(x.value * y.value, [x,y], function ()
-        x.grad += newNode.grad * y.value'
-        y.grad += x.value' * newNode.grad
+        if x.hasGrad x.grad += newNode.grad * y.value' end
+        if y.hasGrad y.grad += x.value' * newNode.grad end
     end)
     return newNode
 end
 
 function mult_ew(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
     newNode = Node(x.value .* y.value, [x,y], function ()
-        x.grad += newNode.grad .* y.value
-        y.grad += newNode.grad .* x.value
+        if x.hasGrad x.grad += newNode.grad .* y.value end
+        if x.hasGrad y.grad += newNode.grad .* x.value end
     end)
     return newNode
 end
 
 # --------------------------------------------------
-# 
+#           trigonometry
 # --------------------------------------------------
 
 function sin(x::Node{<:Real})
     newNode = Node(sin(x.value), [x], function ()
-        x.grad = cos(x.value) * newNode.grad
+        if x.hasGrad x.grad = cos(x.value) * newNode.grad end
     end)
     return newNode
 end
 
 function sin(x::Node{<:AbstractArray})
     newNode = Node(sin(x.value), [x], function ()
-        x.grad = cos(x.value) .* newNode.grad
+        if x.hasGrad x.grad = cos(x.value) .* newNode.grad end
     end)
     return newNode
 end
 
 # --------------------------------------------------
-# 
+#           other
 # --------------------------------------------------
 
 function sum(x::Node{<:AbstractArray})
     newNode = Node(sum(x.value), [x], function ()
-        x.grad .+= newNode.grad
+        if x.hasGrad x.grad .+= newNode.grad end
     end)
     return newNode
 end
 
 # --------------------------------------------------
-# 
-# --------------------------------------------------
+
 
 
 
@@ -138,16 +144,22 @@ function visit(head::Node,visited::Set{Node},order::Vector{Node})
     end
 end
 
-function backward(head::Node,order::Vector{Node})
+function backward(head::Node{T},order::Vector{Node}, seed::T) where {T}
     reset(head)
-    if head.grad isa Real
-        head.grad = one(head.grad) # seed for scalars
-    else
-        head.grad = ones(size(head.value)) # seed for arrays and matrices
-    end
+    head.grad = seed
     for n in reverse(order)
         n.back()
     end
+end
+
+function backward(head::Node,order::Vector{Node})
+
+    if head.grad isa Real
+        backward(head,order,one(head.grad)) # default seed for scalars
+    else
+        backward(head,order,ones(size(head.value)))# default seed for arrays and matrices
+    end
+
 end
 
 function reset(head::Node)
@@ -172,18 +184,5 @@ end
 # backward(f,order)
 # println("x grad = ", x.grad)
 
-W = Node([1.0 2.0; 3.0 4.0],true)  # wagi 2x2
-x = Node([0.5, 1.5],false)          # wektor wejściowy 2x1
-b = Node([0.1, 0.2],true)          # bias 2x1
 
-y = W * x + b
-
-loss = sum(mult_ew(y,y))
-
-order = topo_sort(loss)
-backward(loss,order)
-println("x grad = ", x.grad)
-backward(loss,order)
-println("x grad = ", x.grad)
-# println("\nend of test")
 end # module testProject
