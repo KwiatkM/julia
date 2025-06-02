@@ -32,7 +32,8 @@ mutable struct Node{T}
 end
 
 
-Base.show(io::IO, p::Node) = print(io, "(v=$(p.value), grad=$(p.grad))")
+# Base.show(io::IO, p::Node) = print(io, "(v=$(p.value), grad=$(p.grad))")
+Base.show(io::IO, p::Node) = print(io, "(v=", size(p.value), ", grad=",size(p.grad),")")
 
 # --------------------------------------------
 # --------------------------------------------
@@ -244,7 +245,7 @@ function tanh(x::Node{<:AbstractArray})
 end
 
 function sigm(x::Node{<:Real})
-    newNode = Node(1/(1+ℯ^x.value), [x],function ()
+    newNode = Node(1/(1+ℯ^(-x.value)), [x],function ()
             newNode.value = 1/(1+ℯ^newNode.parents[1].value)
         end,
          function ()
@@ -254,7 +255,7 @@ function sigm(x::Node{<:Real})
 end
 
 function sigm(x::Node{<:AbstractArray})
-    newNode = Node(1 ./ (1 .+ ℯ.^x.value), [x],function ()
+    newNode = Node(1 ./ (1 .+ ℯ.^(-x.value)), [x],function ()
             newNode.value = 1 ./(1 .+ℯ.^newNode.parents[1].value)
         end,
          function ()
@@ -284,7 +285,6 @@ function ReLU(x::Node{<:AbstractArray})
 end
 
 
-
 # --------------------------------------------------
 #           other
 # --------------------------------------------------
@@ -297,6 +297,26 @@ function sum(x::Node{<:AbstractArray})
         if x.hasGrad x.grad .+= newNode.grad end
     end)
     return newNode
+end
+
+function myBinaryCrossEntropy(y::Node{<:Real}, ŷ::Node{<:Real})
+    newNode = Node(-(y.value * log(ŷ.value) + (1 - y.value)*log(1 - ŷ.value)), [y,ŷ],function ()
+            newNode.value = -(newNode.parents[1].value * log(newNode.parents[2].value) + (1 - newNode.parents[1].value)*log(1 - newNode.parents[1].value))
+        end,
+         function ()
+        if ŷ.hasGrad ŷ.grad += y.value/ŷ.value - ((1-y.value)/(1-ŷ.value)) end
+    end)
+    return newNode    
+end
+
+function myBinaryCrossEntropy(y::Node{<:Real}, ŷ::Node{<:AbstractVector})
+    newNode = Node(-(y.value * log(ŷ.value[1]) + (1 - y.value)*log(1 - ŷ.value[1])), [y,ŷ],function ()
+            newNode.value = -(newNode.parents[1].value * log(newNode.parents[2].value[1]) + (1 - newNode.parents[1].value)*log(1 - newNode.parents[2].value[1]))
+        end,
+         function ()
+        if ŷ.hasGrad ŷ.grad[1] -= (y.value / ŷ.value[1]) - ((1.f0 - y.value)/(1.f0 - ŷ.value[1])) end #ŷ.value[1] - y.value end
+    end)
+    return newNode    
 end
 
 # --------------------------------------------------
@@ -357,7 +377,7 @@ function forward(head::Node)
         for p in head.parents
             forward(p)
         end
-       head.forward()
+        head.forward()
     end
 end
 
