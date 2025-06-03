@@ -1,5 +1,4 @@
 
-
 mutable struct Node{T}
     hasGrad :: Bool
     value :: T
@@ -7,6 +6,7 @@ mutable struct Node{T}
     parents :: Vector{Node}
     forward::Function
     back :: Function
+    nodeType :: String
 
     # hasGrad = true -> Variable
     # hasGard = false -> constant
@@ -16,24 +16,25 @@ mutable struct Node{T}
                         zero(value),
                         Node[],
                         () -> nothing,
-                        () -> nothing)
+                        () -> nothing,
+                        hasGrad ? "variable" : "constant")
     end
 
     # operator
-    function Node(value::T, parents::Vector{<:Node},forward::Function, back::Function) where T
+    function Node(value::T, parents::Vector{<:Node},forward::Function, back::Function, info::String) where T
         return new{T}(  true,
                         value,
                         zero(value),
                         parents,
                         forward,
-                        back)
+                        back,
+                        info)
     end
 
 end
 
 
-# Base.show(io::IO, p::Node) = print(io, "(v=$(p.value), grad=$(p.grad))")
-Base.show(io::IO, p::Node) = print(io, "(v=", size(p.value), ", grad=",size(p.grad),")")
+Base.show(io::IO, p::Node) = print(io, p.nodeType, " (v=", size(p.value), ", grad=",size(p.grad),")")
 
 # --------------------------------------------
 # --------------------------------------------
@@ -55,7 +56,7 @@ function +(x::Node{<:Real}, y::Node{<:Real})
             function ()
             if x.hasGrad x.grad += newNode.grad end
             if y.hasGrad y.grad += newNode.grad end
-        end)
+        end, "addition")
     return newNode
 end
 
@@ -66,7 +67,7 @@ function +(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
             function ()
             if x.hasGrad x.grad += newNode.grad end
             if y.hasGrad y.grad += newNode.grad end
-    end)
+    end, "addition")
     return newNode
 end
 
@@ -81,7 +82,7 @@ function -(x::Node{<:Real}, y::Node{<:Real})
         function ()
             if x.hasGrad x.grad += newNode.grad end
             if y.hasGrad y.grad -= newNode.grad end
-    end)
+    end, "subtraction")
     return newNode
 end
 
@@ -92,7 +93,7 @@ function -(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
         function ()
             if x.hasGrad x.grad += newNode.grad end
             if y.hasGrad y.grad -= newNode.grad end
-    end)
+    end, "subtraction")
     return newNode
 end
 
@@ -102,7 +103,7 @@ function -(x::Node{<:Real})
         end,  function ()
             if x.hasGrad x.grad -= newNode.grad end
 
-    end)
+    end, "negation")
     return newNode
 end
 
@@ -112,7 +113,7 @@ function -(x::Node{<:AbstractArray})
         end, function ()
             if x.hasGrad x.grad -= newNode.grad end
 
-    end)
+    end, "negation")
     return newNode
 end
 
@@ -127,7 +128,7 @@ function *(x::Node{<:Real}, y::Node{<:Real})
         function ()
         if x.hasGrad x.grad += y.value * newNode.grad end
         if y.hasGrad y.grad += x.value * newNode.grad end
-    end)
+    end, "multiplication")
     return newNode
 end
 
@@ -138,7 +139,7 @@ function *(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
         function ()
         if x.hasGrad x.grad += newNode.grad * y.value' end
         if y.hasGrad y.grad += x.value' * newNode.grad end
-    end)
+    end, "multiplication")
     return newNode
 end
 
@@ -150,7 +151,7 @@ function Broadcast.broadcasted(::typeof(*), x::Node{<:AbstractArray}, y::Node{<:
         function ()
         if x.hasGrad x.grad += newNode.grad .* y.value end
         if x.hasGrad y.grad += newNode.grad .* x.value end
-    end)
+    end, "multiplication elementwise")
     return newNode
 end
 
@@ -164,7 +165,7 @@ function sin(x::Node{<:Real})
         end,
         function ()
         if x.hasGrad x.grad += cos(x.value) * newNode.grad end
-    end)
+    end, "sin")
     return newNode
 end
 
@@ -174,7 +175,7 @@ function sin(x::Node{<:AbstractArray})
         end,
         function ()
         if x.hasGrad x.grad .+= cos.(x.value) .* newNode.grad end
-    end)
+    end, "sin")
     return newNode
 end
 
@@ -184,7 +185,7 @@ function cos(x::Node{<:Real})
         end,
         function ()
         if x.hasGrad x.grad -= sin(x.value) * newNode.grad end
-    end)
+    end, "cos")
     return newNode
 end
 
@@ -194,7 +195,7 @@ function cos(x::Node{<:AbstractArray})
         end,
          function ()
         if x.hasGrad x.grad .-= sin.(x.value) .* newNode.grad end
-    end)
+    end, "cos")
     return newNode
 end
 
@@ -204,7 +205,7 @@ function tan(x::Node{<:Real})
         end,
          function ()
         if x.hasGrad x.grad += 1 / (cos(x.value)^2) * newNode.grad end
-    end)
+    end, "tan")
     return newNode
 end
 
@@ -214,7 +215,7 @@ function tan(x::Node{<:AbstractArray})
         end,
          function ()
         if x.hasGrad x.grad .+= 1 ./ (cos.(x.value).^2) .* newNode.grad end
-    end)
+    end, "tan")
     return newNode
 end
 
@@ -229,7 +230,7 @@ function tanh(x::Node{<:Real})
         end,
          function ()
         if x.hasGrad x.grad += (1 - newNode.value^2) * newNode.grad end
-    end)
+    end, "tanh")
 
     return newNode
 end
@@ -240,7 +241,7 @@ function tanh(x::Node{<:AbstractArray})
         end,
          function ()
         if x.hasGrad x.grad .+= (1 .- newNode.value.^2) .* newNode.grad end
-    end)
+    end, "tanh")
     return newNode
 end
 
@@ -250,7 +251,7 @@ function sigm(x::Node{<:Real})
         end,
          function ()
         if x.hasGrad x.grad += newNode.value * (1-newNode.value) * newNode.grad end
-    end)
+    end, "sigm")
     return newNode
 end
 
@@ -260,7 +261,7 @@ function sigm(x::Node{<:AbstractArray})
         end,
          function ()
         if x.hasGrad x.grad .+= newNode.value .* (1 .-newNode.value) .* newNode.grad end
-    end)
+    end, "sigm")
     return newNode
 end
 
@@ -270,7 +271,7 @@ function ReLU(x::Node{<:Real})
         end,
          function ()
         if x.hasGrad x.grad += x.value > zero(x.value) ? newNode.grad : zero(x.value) end
-    end)
+    end, "ReLU")
     return newNode
 end
 
@@ -279,8 +280,28 @@ function ReLU(x::Node{<:AbstractArray})
             newNode.value = max.(0,newNode.parents[1].value)
         end,
          function ()
-        if x.hasGrad x.grad .+= ifelse.(x.value .> zero(x.value), x.value, zero(x.value)) end
-    end)
+        if x.hasGrad x.grad .+= ifelse.(x.value .> zero(x.value), newNode.grad, zero(newNode.grad)) end
+    end, "ReLU")
+    return newNode
+end
+
+function linear(x::Node{<:Real})
+    newNode = Node(x.value, [x],function ()
+            newNode.value = newNode.parents[1].value
+        end,
+         function ()
+        if x.hasGrad x.grad += newNode.grad end
+    end, "linear")
+    return newNode
+end
+
+function linear(x::Node{<:AbstractArray})
+    newNode = Node(x.value, [x],function ()
+            newNode.value = newNode.parents[1].value
+        end,
+         function ()
+        if x.hasGrad x.grad .+= newNode.grad end
+    end, "linear")
     return newNode
 end
 
@@ -295,7 +316,7 @@ function sum(x::Node{<:AbstractArray})
         end,
          function ()
         if x.hasGrad x.grad .+= newNode.grad end
-    end)
+    end, "sum")
     return newNode
 end
 
@@ -304,8 +325,8 @@ function myBinaryCrossEntropy(y::Node{<:Real}, ŷ::Node{<:Real})
             newNode.value = -(newNode.parents[1].value * log(newNode.parents[2].value) + (1 - newNode.parents[1].value)*log(1 - newNode.parents[1].value))
         end,
          function ()
-        if ŷ.hasGrad ŷ.grad += y.value/ŷ.value - ((1-y.value)/(1-ŷ.value)) end
-    end)
+        if ŷ.hasGrad ŷ.grad -= (y.value/ŷ.value - ((1-y.value)/(1-ŷ.value))) end
+    end, "BCE")
     return newNode    
 end
 
@@ -315,7 +336,27 @@ function myBinaryCrossEntropy(y::Node{<:Real}, ŷ::Node{<:AbstractVector})
         end,
          function ()
         if ŷ.hasGrad ŷ.grad[1] -= (y.value / ŷ.value[1]) - ((1.f0 - y.value)/(1.f0 - ŷ.value[1])) end #ŷ.value[1] - y.value end
-    end)
+    end, "BCE")
+    return newNode    
+end
+
+function myMSE(y::Node{<:Real}, ŷ::Node{<:Real})
+    newNode = Node((y.value - ŷ.value)^2, [y,ŷ],function ()
+            newNode.value = (newNode.parents[1].value - newNode.parents[2].value)^2
+        end,
+         function ()
+        if ŷ.hasGrad ŷ.grad += 2*ŷ.value - 2*y.value end #ŷ.value[1] - y.value end
+    end, "MSE")
+    return newNode    
+end
+
+function myMSE(y::Node{<:Real}, ŷ::Node{<:AbstractVector})
+    newNode = Node((y.value - ŷ.value[1])^2, [y,ŷ],function ()
+            newNode.value = (newNode.parents[1].value - newNode.parents[2].value[1])^2
+        end,
+         function ()
+        if ŷ.hasGrad ŷ.grad[1] += 2*ŷ.value[1] - 2*y.value end
+    end, "MSE")
     return newNode    
 end
 
@@ -353,12 +394,20 @@ function backward(head::Node{T},order::Vector{Node}, seed::T) where {T}
     end
 end
 
+function backward(head::Node{Vector{T}},order::Vector{Node}, seed::Vector{T}) where {T}
+    reset(head)
+    head.grad = seed
+    for n in reverse(order)
+        n.back()
+    end
+end
+
 function backward(head::Node,order::Vector{Node})
 
     if head.grad isa Real
         backward(head,order,one(head.grad)) # default seed for scalars
     else
-        backward(head,order,ones(size(head.value)))# default seed for arrays and matrices
+        backward(head,order,ones(typeof(head.value[1]),size(head.value)))# default seed for arrays and matrices
     end
 
 end
@@ -373,12 +422,10 @@ function reset(head::Node)
 end
 
 function forward(head::Node)
-    if !isempty(head.parents)
-        for p in head.parents
-            forward(p)
-        end
-        head.forward()
+    for p in head.parents
+        forward(p)
     end
+    head.forward()
 end
 
 

@@ -4,11 +4,15 @@ authors = ["kwiatkM <01169586@pw.edu.pl>"]
 version = "0.1.0"
 
 [deps]
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
+CSV = "0.10.15"
+DataFrames = "1.7.0"
 IJulia = "1.27.0"
 JLD2 = "0.5.13"
 Zygote = "0.7.7"
