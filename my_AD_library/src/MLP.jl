@@ -19,6 +19,7 @@ mutable struct Model
     weightNodes::Vector{Node}
     XTrainNode::Node
     yTrainNode::Node
+    dataType::Type
     # accuracy::Function
 end
 
@@ -29,11 +30,9 @@ mutable struct Options
 end
 
 # TODO: check if output size form previous node matches the input size of the current one
-# assumes the input data is in Float32 type
-# TODO: add different data types
-function buildModel(layers::AbstractLayer...)
-    trainXInputNode::Node = Node(zeros(Float32, layers[1].inputSize), false)
-    trainYInputNode::Node = Node(.0f0,false)
+function buildModel(type::Type{<:AbstractFloat}, layers::AbstractLayer...)
+    trainXInputNode::Node = Node(zeros(type, layers[1].inputSize), false)
+    trainYInputNode::Node = Node(type(0),false)
     weightNodes::Vector{Node} = []
     graph::Node = trainXInputNode
     for layer in layers
@@ -41,14 +40,14 @@ function buildModel(layers::AbstractLayer...)
             graph = layer.fun(trainYInputNode,graph)
         else
             # graph sizes: activationFunction( W[out x in] * x[in x 1] + bias[out x 1])
-            W = Node(randn(Float32, (layer.outputSize, layer.inputSize)))
-            b = Node(randn(Float32, layer.outputSize))
+            W = Node(randn(type, (layer.outputSize, layer.inputSize)))
+            b = Node(randn(type, layer.outputSize))
             graph = layer.activationFunction((W * graph) + b)
             push!(weightNodes, W, b)
         end
     end
     
-    return Model(graph,weightNodes,trainXInputNode,trainYInputNode)
+    return Model(graph,weightNodes,trainXInputNode,trainYInputNode,type)
 end
 
 function binaryAccuracy(y,ŷ)
@@ -56,7 +55,14 @@ function binaryAccuracy(y,ŷ)
 end
 
 # TODO: add batch training. Right now it's stochastic gradient descent
-function train(model::Model, X::AbstractArray{Float32}, y::AbstractArray{Float32}, options::Options)
+function train(model::Model, X::Matrix{T}, y::Matrix{T}, options::Options) where T <: AbstractFloat
+    if typeof(X[1]) != model.dataType
+        X = model.dataType.(X)
+    end
+    if typeof(y[1]) != model.dataType
+        y = model.dataType.(y)
+    end
+
     total_loss = 0.
     # total_accuracy = 0.
     oredr = topo_sort(model.head)

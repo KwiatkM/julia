@@ -49,7 +49,7 @@ import Base: +, -, *, /, sin, cos, tan, tanh, sum
 #           Addition
 # --------------------------------------------
 
-function +(x::Node{<:Real}, y::Node{<:Real})
+function +(x::Node{T}, y::Node{T}) where T <: AbstractFloat
         newNode = Node(x.value + y.value, [x,y],function ()
             newNode.value = newNode.parents[1].value + newNode.parents[2].value 
         end,
@@ -60,7 +60,7 @@ function +(x::Node{<:Real}, y::Node{<:Real})
     return newNode
 end
 
-function +(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
+function +(x::Node{<:AbstractArray{T}}, y::Node{<:AbstractArray{T}}) where T <: AbstractFloat
         newNode = Node(x.value + y.value, [x,y],function ()
             newNode.value = newNode.parents[1].value + newNode.parents[2].value 
         end,
@@ -75,7 +75,7 @@ end
 #           Subtraction
 # --------------------------------------------
 
-function -(x::Node{<:Real}, y::Node{<:Real})
+function -(x::Node{T}, y::Node{T}) where T <: AbstractFloat
         newNode = Node(x.value - y.value, [x,y],function ()
             newNode.value = newNode.parents[1].value - newNode.parents[2].value 
         end, 
@@ -86,7 +86,7 @@ function -(x::Node{<:Real}, y::Node{<:Real})
     return newNode
 end
 
-function -(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
+function -(x::Node{<:AbstractArray{T}}, y::Node{<:AbstractArray{T}}) where T <: AbstractFloat
         newNode = Node(x.value - y.value, [x,y],function ()
             newNode.value = newNode.parents[1].value - newNode.parents[2].value 
         end, 
@@ -97,7 +97,7 @@ function -(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
     return newNode
 end
 
-function -(x::Node{<:Real})
+function -(x::Node{T}) where T <: AbstractFloat
         newNode = Node(-x.value, [x],function ()
             newNode.value = -newNode.parents[1].value
         end,  function ()
@@ -107,7 +107,7 @@ function -(x::Node{<:Real})
     return newNode
 end
 
-function -(x::Node{<:AbstractArray})
+function -(x::Node{<:AbstractArray{T}}) where T <: AbstractFloat
         newNode = Node(-x.value, [x],function ()
             newNode.value = -newNode.parents[1].value
         end, function ()
@@ -121,7 +121,7 @@ end
 #           Multiplication
 # --------------------------------------------------
 
-function *(x::Node{<:Real}, y::Node{<:Real})
+function *(x::Node{T}, y::Node{T}) where T <: AbstractFloat
     newNode = Node(x.value * y.value, [x,y],function ()
             newNode.value = newNode.parents[1].value * newNode.parents[2].value 
         end, 
@@ -132,7 +132,7 @@ function *(x::Node{<:Real}, y::Node{<:Real})
     return newNode
 end
 
-function *(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
+function *(x::Node{<:AbstractArray{T}}, y::Node{<:AbstractArray{T}}) where T <: AbstractFloat
     newNode = Node(x.value * y.value, [x,y],function ()
             newNode.value = newNode.parents[1].value * newNode.parents[2].value 
         end, 
@@ -144,7 +144,7 @@ function *(x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
 end
 
 
-function Broadcast.broadcasted(::typeof(*), x::Node{<:AbstractArray}, y::Node{<:AbstractArray})
+function Broadcast.broadcasted(::typeof(*), x::Node{<:AbstractArray{T}}, y::Node{<:AbstractArray{T}}) where T <: AbstractFloat
     newNode = Node(x.value .* y.value, [x,y],function ()
             newNode.value = newNode.parents[1].value .* newNode.parents[2].value 
         end, 
@@ -159,7 +159,7 @@ end
 #           trigonometry
 # --------------------------------------------------
 
-function sin(x::Node{<:Real})
+function sin(x::Node{T}) where T <: AbstractFloat
     newNode = Node(sin(x.value), [x],function ()
             newNode.value = sin(newNode.parents[1].value)
         end,
@@ -169,7 +169,7 @@ function sin(x::Node{<:Real})
     return newNode
 end
 
-function sin(x::Node{<:AbstractArray})
+function sin(x::Node{<:AbstractArray{T}}) where T <: AbstractFloat
     newNode = Node(sin.(x.value), [x],function ()
             newNode.value = sin.(newNode.parents[1].value)
         end,
@@ -179,7 +179,7 @@ function sin(x::Node{<:AbstractArray})
     return newNode
 end
 
-function cos(x::Node{<:Real})
+function cos(x::Node{T}) where T <: AbstractFloat
     newNode = Node(cos(x.value), [x],function ()
             newNode.value = cos(newNode.parents[1].value)
         end,
@@ -189,7 +189,7 @@ function cos(x::Node{<:Real})
     return newNode
 end
 
-function cos(x::Node{<:AbstractArray})
+function cos(x::Node{<:AbstractArray{T}}) where T <: AbstractFloat
     newNode = Node(cos.(x.value), [x],function ()
             newNode.value = cos.(newNode.parents[1].value)
         end,
@@ -199,7 +199,7 @@ function cos(x::Node{<:AbstractArray})
     return newNode
 end
 
-function tan(x::Node{<:Real})
+function tan(x::Node{T}) where T <: AbstractFloat
     newNode = Node(tan(x.value), [x],function ()
             newNode.value = tan(newNode.parents[1].value)
         end,
@@ -209,7 +209,7 @@ function tan(x::Node{<:Real})
     return newNode
 end
 
-function tan(x::Node{<:AbstractArray})
+function tan(x::Node{<:AbstractArray{T}}) where T <: AbstractFloat
     newNode = Node(tan.(x.value), [x],function ()
             newNode.value = tan.(newNode.parents[1].value)
         end,
@@ -224,7 +224,7 @@ end
 #           activation functions
 # --------------------------------------------------
 
-function tanh(x::Node{<:Real})
+function tanh(x::Node{T}) where T <: AbstractFloat
     newNode = Node(tanh(x.value), [x],function ()
             newNode.value = tanh(newNode.parents[1].value)
         end,
@@ -235,7 +235,7 @@ function tanh(x::Node{<:Real})
     return newNode
 end
 
-function tanh(x::Node{<:AbstractArray})
+function tanh(x::Node{<:AbstractArray{T}}) where T <: AbstractFloat
     newNode = Node(tanh.(x.value), [x],function ()
             newNode.value = tanh.(newNode.parents[1].value)
         end,
@@ -245,7 +245,7 @@ function tanh(x::Node{<:AbstractArray})
     return newNode
 end
 
-function sigm(x::Node{<:Real})
+function sigm(x::Node{T}) where T <: AbstractFloat
     newNode = Node(1/(1+ℯ^(-x.value)), [x],function ()
             newNode.value = 1/(1+ℯ^newNode.parents[1].value)
         end,
@@ -255,7 +255,7 @@ function sigm(x::Node{<:Real})
     return newNode
 end
 
-function sigm(x::Node{<:AbstractArray})
+function sigm(x::Node{<:AbstractArray{T}}) where T <: AbstractFloat
     newNode = Node(1 ./ (1 .+ ℯ.^(-x.value)), [x],function ()
             newNode.value = 1 ./(1 .+ℯ.^newNode.parents[1].value)
         end,
@@ -265,7 +265,7 @@ function sigm(x::Node{<:AbstractArray})
     return newNode
 end
 
-function ReLU(x::Node{<:Real})
+function ReLU(x::Node{T}) where T <: AbstractFloat
     newNode = Node(max(0,x.value), [x],function ()
             newNode.value = max(0,newNode.parents[1].value)
         end,
@@ -275,7 +275,7 @@ function ReLU(x::Node{<:Real})
     return newNode
 end
 
-function ReLU(x::Node{<:AbstractArray})
+function ReLU(x::Node{<:AbstractArray{T}}) where T <: AbstractFloat
     newNode = Node(max.(0,x.value), [x],function ()
             newNode.value = max.(0,newNode.parents[1].value)
         end,
@@ -285,7 +285,7 @@ function ReLU(x::Node{<:AbstractArray})
     return newNode
 end
 
-function linear(x::Node{<:Real})
+function linear(x::Node{T}) where T <: AbstractFloat
     newNode = Node(x.value, [x],function ()
             newNode.value = newNode.parents[1].value
         end,
@@ -295,7 +295,7 @@ function linear(x::Node{<:Real})
     return newNode
 end
 
-function linear(x::Node{<:AbstractArray})
+function linear(x::Node{<:AbstractArray{T}}) where T <: AbstractFloat
     newNode = Node(x.value, [x],function ()
             newNode.value = newNode.parents[1].value
         end,
@@ -310,7 +310,7 @@ end
 #           other
 # --------------------------------------------------
 
-function sum(x::Node{<:AbstractArray})
+function sum(x::Node{<:AbstractArray{T}}) where T <: AbstractFloat
     newNode = Node(sum(x.value), [x],function ()
             newNode.value = sum(newNode.parents[1].value)
         end,
@@ -320,7 +320,7 @@ function sum(x::Node{<:AbstractArray})
     return newNode
 end
 
-function myBinaryCrossEntropy(y::Node{<:Real}, ŷ::Node{<:Real})
+function myBinaryCrossEntropy(y::Node{T}, ŷ::Node{T}) where T <: AbstractFloat
     newNode = Node(-(y.value * log(ŷ.value) + (1 - y.value)*log(1 - ŷ.value)), [y,ŷ],function ()
             newNode.value = -(newNode.parents[1].value * log(newNode.parents[2].value) + (1 - newNode.parents[1].value)*log(1 - newNode.parents[1].value))
         end,
@@ -330,7 +330,7 @@ function myBinaryCrossEntropy(y::Node{<:Real}, ŷ::Node{<:Real})
     return newNode    
 end
 
-function myBinaryCrossEntropy(y::Node{<:Real}, ŷ::Node{<:AbstractVector})
+function myBinaryCrossEntropy(y::Node{T}, ŷ::Node{<:AbstractVector}) where T <: AbstractFloat
     newNode = Node(-(y.value * log(ŷ.value[1]) + (1 - y.value)*log(1 - ŷ.value[1])), [y,ŷ],function ()
             newNode.value = -(newNode.parents[1].value * log(newNode.parents[2].value[1]) + (1 - newNode.parents[1].value)*log(1 - newNode.parents[2].value[1]))
         end,
@@ -340,7 +340,7 @@ function myBinaryCrossEntropy(y::Node{<:Real}, ŷ::Node{<:AbstractVector})
     return newNode    
 end
 
-function myMSE(y::Node{<:Real}, ŷ::Node{<:Real})
+function myMSE(y::Node{T}, ŷ::Node{T}) where T <: AbstractFloat
     newNode = Node((y.value - ŷ.value)^2, [y,ŷ],function ()
             newNode.value = (newNode.parents[1].value - newNode.parents[2].value)^2
         end,
@@ -350,7 +350,7 @@ function myMSE(y::Node{<:Real}, ŷ::Node{<:Real})
     return newNode    
 end
 
-function myMSE(y::Node{<:Real}, ŷ::Node{<:AbstractVector})
+function myMSE(y::Node{T}, ŷ::Node{<:AbstractVector}) where T <: AbstractFloat
     newNode = Node((y.value - ŷ.value[1])^2, [y,ŷ],function ()
             newNode.value = (newNode.parents[1].value - newNode.parents[2].value[1])^2
         end,
