@@ -60,13 +60,35 @@ function +(x::Node{T}, y::Node{T}) where T <: AbstractFloat
     return newNode
 end
 
-function +(x::Node{<:AbstractArray{T}}, y::Node{<:AbstractArray{T}}) where T <: AbstractFloat
+function +(x::Node{Vector{T}}, y::Node{Vector{T}}) where T <: AbstractFloat
         newNode = Node(x.value + y.value, [x,y],function ()
             newNode.value = newNode.parents[1].value + newNode.parents[2].value 
         end,
             function ()
             if x.hasGrad x.grad += newNode.grad end
             if y.hasGrad y.grad += newNode.grad end
+    end, "addition")
+    return newNode
+end
+
+function +(x::Node{Matrix{T}}, y::Matrix{Vector{T}}) where T <: AbstractFloat
+        newNode = Node(x.value + y.value, [x,y],function ()
+            newNode.value = newNode.parents[1].value + newNode.parents[2].value 
+        end,
+            function ()
+            if x.hasGrad x.grad += newNode.grad end
+            if y.hasGrad y.grad += newNode.grad end
+    end, "addition")
+    return newNode
+end
+
+function +(x::Node{Matrix{T}}, y::Node{Vector{T}}) where T <: AbstractFloat
+        newNode = Node(x.value .+ y.value, [x,y],function ()
+            newNode.value = newNode.parents[1].value .+ newNode.parents[2].value 
+        end,
+            function ()
+            if x.hasGrad x.grad .+= newNode.grad end
+            if y.hasGrad y.grad .+= newNode.grad end
     end, "addition")
     return newNode
 end
@@ -86,13 +108,35 @@ function -(x::Node{T}, y::Node{T}) where T <: AbstractFloat
     return newNode
 end
 
-function -(x::Node{<:AbstractArray{T}}, y::Node{<:AbstractArray{T}}) where T <: AbstractFloat
+function -(x::Node{Matrix{T}}, y::Node{Matrix{T}}) where T <: AbstractFloat
         newNode = Node(x.value - y.value, [x,y],function ()
             newNode.value = newNode.parents[1].value - newNode.parents[2].value 
         end, 
         function ()
             if x.hasGrad x.grad += newNode.grad end
             if y.hasGrad y.grad -= newNode.grad end
+    end, "subtraction")
+    return newNode
+end
+
+function -(x::Node{Vector{T}}, y::Node{Vector{T}}) where T <: AbstractFloat
+        newNode = Node(x.value - y.value, [x,y],function ()
+            newNode.value = newNode.parents[1].value - newNode.parents[2].value 
+        end, 
+        function ()
+            if x.hasGrad x.grad += newNode.grad end
+            if y.hasGrad y.grad -= newNode.grad end
+    end, "subtraction")
+    return newNode
+end
+
+function -(x::Node{Matrix{T}}, y::Node{Vector{T}}) where T <: AbstractFloat
+        newNode = Node(x.value .- y.value, [x,y],function ()
+            newNode.value = newNode.parents[1].value .- newNode.parents[2].value 
+        end, 
+        function ()
+            if x.hasGrad x.grad .+= newNode.grad end
+            if y.hasGrad y.grad .-= newNode.grad end
     end, "subtraction")
     return newNode
 end
