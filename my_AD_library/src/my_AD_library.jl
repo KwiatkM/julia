@@ -71,27 +71,43 @@ function +(x::Node{Vector{T}}, y::Node{Vector{T}}) where T <: AbstractFloat
     return newNode
 end
 
-function +(x::Node{Matrix{T}}, y::Matrix{Vector{T}}) where T <: AbstractFloat
-        newNode = Node(x.value + y.value, [x,y],function ()
-            newNode.value = newNode.parents[1].value + newNode.parents[2].value 
-        end,
-            function ()
-            if x.hasGrad x.grad += newNode.grad end
-            if y.hasGrad y.grad += newNode.grad end
-    end, "addition")
-    return newNode
-end
-
-function +(x::Node{Matrix{T}}, y::Node{Vector{T}}) where T <: AbstractFloat
+function +(x::Node{Matrix{T}}, y::Node{Matrix{T}}) where T <: AbstractFloat
         newNode = Node(x.value .+ y.value, [x,y],function ()
             newNode.value = newNode.parents[1].value .+ newNode.parents[2].value 
         end,
             function ()
-            if x.hasGrad x.grad .+= newNode.grad end
-            if y.hasGrad y.grad .+= newNode.grad end
+            if x.hasGrad x.grad = newNode.grad .+ x.grad end
+            if y.hasGrad y.grad = newNode.grad .+ y.grad end
     end, "addition")
     return newNode
 end
+
+function +(x::Node{<:AbstractArray{T}}, y::Node{<:AbstractArray{T}}) where T <: AbstractFloat
+        newNode = Node(x.value .+ y.value, [x,y],function ()
+            newNode.value = newNode.parents[1].value .+ newNode.parents[2].value 
+        end,
+            function ()
+            # println(size(x.grad))
+            # println(size(y.grad))
+            # println(size(newNode.grad))
+            if x.hasGrad x.grad = newNode.grad .+ x.grad end
+            if y.hasGrad y.grad = newNode.grad .+ y.grad end
+    end, "addition")
+    return newNode
+end
+
+function MLPaddBias(A::Node{Matrix{T}}, b::Node{Matrix{T}}) where T <: AbstractFloat
+        newNode = Node(A.value .+ b.value, [A,b],function ()
+            newNode.value = newNode.parents[1].value .+ newNode.parents[2].value 
+        end,
+            function ()
+            if A.hasGrad A.grad += newNode.grad end
+            if b.hasGrad b.grad += sum(newNode.grad,dims=2) end
+    end, "MLP add bias")
+    return newNode
+end
+
+
 
 # --------------------------------------------
 #           Subtraction
@@ -181,8 +197,11 @@ function *(x::Node{<:AbstractArray{T}}, y::Node{<:AbstractArray{T}}) where T <: 
             newNode.value = newNode.parents[1].value * newNode.parents[2].value 
         end, 
         function ()
-        if x.hasGrad x.grad += newNode.grad * y.value' end
-        if y.hasGrad y.grad += x.value' * newNode.grad end
+            # println(size(x.value))
+            # println(size(y.value))
+            # println(size(newNode.grad))
+        if x.hasGrad x.grad = x.grad .+ (newNode.grad * y.value') end
+        if y.hasGrad y.grad = y.grad .+ (x.value' * newNode.grad) end
     end, "multiplication")
     return newNode
 end
@@ -324,7 +343,7 @@ function ReLU(x::Node{<:AbstractArray{T}}) where T <: AbstractFloat
             newNode.value = max.(0,newNode.parents[1].value)
         end,
          function ()
-        if x.hasGrad x.grad .+= ifelse.(x.value .> zero(x.value), newNode.grad, zero(newNode.grad)) end
+        if x.hasGrad x.grad = x.grad .+ ifelse.(x.value .> zero(x.value), newNode.grad, zero(newNode.grad)) end
     end, "ReLU")
     return newNode
 end
@@ -344,7 +363,9 @@ function linear(x::Node{<:AbstractArray{T}}) where T <: AbstractFloat
             newNode.value = newNode.parents[1].value
         end,
          function ()
-        if x.hasGrad x.grad .+= newNode.grad end
+        # println(size(x.grad))
+        # println(size(newNode.grad))
+        if x.hasGrad x.grad = x.grad .+ newNode.grad end
     end, "linear")
     return newNode
 end
@@ -384,6 +405,16 @@ function myBinaryCrossEntropy(y::Node{T}, ŷ::Node{<:AbstractVector}) where T <
     return newNode    
 end
 
+function myBinaryCrossEntropy(y::Node{Vector{T}}, ŷ::Node{Vector{T}}) where T <: AbstractFloat
+    newNode = Node(-(y.value .* log.(ŷ.value) .+ (1 .- y.value) .* log.(1 .- ŷ.value)), [y,ŷ],function ()
+            newNode.value = -(newNode.parents[1].value .* log.(newNode.parents[2].value) .+ (1 .- newNode.parents[1].value) .* log.(1 .- newNode.parents[1].value))
+        end,
+         function ()
+        if ŷ.hasGrad ŷ.grad -= (y.value ./ ŷ.value .- ((1 .- y.value) ./ (1 .- ŷ.value))) end
+    end, "BCE")
+    return newNode    
+end
+
 function myMSE(y::Node{T}, ŷ::Node{T}) where T <: AbstractFloat
     newNode = Node((y.value - ŷ.value)^2, [y,ŷ],function ()
             newNode.value = (newNode.parents[1].value - newNode.parents[2].value)^2
@@ -394,12 +425,22 @@ function myMSE(y::Node{T}, ŷ::Node{T}) where T <: AbstractFloat
     return newNode    
 end
 
-function myMSE(y::Node{T}, ŷ::Node{<:AbstractVector}) where T <: AbstractFloat
+function myMSE(y::Node{T}, ŷ::Node{<:AbstractArray}) where T <: AbstractFloat
     newNode = Node((y.value - ŷ.value[1])^2, [y,ŷ],function ()
             newNode.value = (newNode.parents[1].value - newNode.parents[2].value[1])^2
         end,
          function ()
         if ŷ.hasGrad ŷ.grad[1] += 2*ŷ.value[1] - 2*y.value end
+    end, "MSE")
+    return newNode    
+end
+
+function myMSE(y::Node{<:AbstractArray{T}}, ŷ::Node{<:AbstractArray{T}}) where T <: AbstractFloat
+    newNode = Node((y.value .- ŷ.value).^2, [y,ŷ],function ()
+            newNode.value = (newNode.parents[1].value .- newNode.parents[2].value).^2
+        end,
+         function ()
+        if ŷ.hasGrad ŷ.grad = (2 .* ŷ.value .- 2 .* y.value) .+ ŷ.grad end #ŷ.value[1] - y.value end
     end, "MSE")
     return newNode    
 end
