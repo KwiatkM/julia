@@ -3,6 +3,7 @@ include("my_AD_library.jl")
 
 println("aaaaaaaaaaaaaaaaaaaaaaaaaaa")
 abstract type AbstractLayer end
+abstract type AbstractOptimizer end
 
 mutable struct FullyConnected <: AbstractLayer
     inputSize::Int64
@@ -26,7 +27,7 @@ end
 mutable struct Loss <:AbstractLayer
     fun::Function
     build::Function # adds final loss function to the graph, 
-                            # takes trainYInputNode and current graph head, returns new graph head
+                    # takes trainYInputNode and current graph head, returns new graph head
 
     function Loss(fun::Function)
         layer = new(fun, function(trainYInputNode::Node, graph::Node)
@@ -38,6 +39,32 @@ mutable struct Loss <:AbstractLayer
 
 end
 
+mutable struct Options
+    nEpochs::Int64
+    α::Float64
+    β1::Float64
+    β2::Float64
+    ϵ::Float64
+    batchSize::Int64
+
+    function Options()
+        return new(100, 10e-5, 0.9, 0.999,10e-8, 8)
+    end
+end
+
+function setDefaultAdamOptions(opt::Options)
+    opt.α = 10e-3
+    opt.β1 = 0.9
+    opt.β2 = 0.999
+    opt.ϵ = 10e-8
+    println("\nOption set:")
+    println("α = 10e-3")
+    println("β1 = 0.9")
+    println("β2 = 0.999")
+    println("ϵ = 10e-8")
+    return nothing
+end
+
 mutable struct Model
     head::Node # model loss
     weightNodes::Vector{Node}
@@ -47,15 +74,59 @@ mutable struct Model
     dataType::Type
 end
 
-mutable struct Options
-    nEpochs::Int64
-    learningRate::Float64
-    batchSize::Int64
+mutable struct GradientDescent <:AbstractOptimizer
 
-    function Options()
-        return new(100,10e-5,8)
+    options::Options
+    updateWeights!::Function
+
+    function GradientDescent(options::Options)
+        return new(options, function(model::Model)
+        for w in model.weightNodes
+            w.value = w.value - options.α .* w.grad
+        end
+    end)
     end
 end
+
+
+
+mutable struct Adam{T} <:AbstractOptimizer
+    options::Options
+    M::Vector{Matrix{T}}
+    V::Vector{Matrix{T}}
+    t::Int64
+
+    updateWeights!::Function
+
+    function Adam(options::Options, model::Model)
+        tmp = Vector{Matrix{model.dataType}}([])
+        for w in model.weightNodes
+            push!(tmp,copy(w.grad))
+        end
+        opt = new{model.dataType}(options,tmp,deepcopy(tmp),0,function (model::Model)
+        for (m,v,w) in zip(opt.M, opt.V, model.weightNodes)
+            opt.t += 1
+            m = options.β1 * m + (1-options.β1) * w.grad
+            v = options.β2 * v + (1-options.β2) * (w.grad).^2
+
+            m̂ = m/(1-options.β1^opt.t)
+            v̂ = v/(1-options.β2^opt.t)
+
+            w.value -= options.α .* (m̂ ./ (sqrt.(v̂) .+ options.ϵ))
+            
+        end    
+            
+        end)
+
+            #         println(model.weightNodes)
+            # println(opt.V)
+        return opt
+    end
+end
+
+
+
+
 
 
 function buildModel(type::Type{<:AbstractFloat}, layers::AbstractLayer...)
@@ -88,7 +159,7 @@ function binaryAccuracy(y,ŷ)
 end
 
 
-function train(model::Model, X::AbstractArray{T}, y::AbstractArray{T}, options::Options) where T <: AbstractFloat
+function train(model::Model, X::AbstractArray{T}, y::AbstractArray{T}, options::Options, optimizer::AbstractOptimizer) where T <: AbstractFloat
     if typeof(X[1]) != model.dataType
         X = model.dataType.(X)
     end
@@ -125,10 +196,7 @@ function train(model::Model, X::AbstractArray{T}, y::AbstractArray{T}, options::
                 total_loss += sum(model.head.value)
                 
                 # total_accuracy += model.accuracy(y[col], model.head.value)
-                for w in model.weightNodes
-
-                    w.value = w.value .- options.learningRate .* w.grad
-                end
+                optimizer.updateWeights!(model)
             end
         end
         # t = @elapsed begin

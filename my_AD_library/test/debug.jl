@@ -34,14 +34,18 @@ model = buildModel(Float64,
     )
     
 
-# epochs
-# learning rate
-options = Options();#(100, 0.00001);
-options.nEpochs = 10;
-options.learningRate = 10e-5;
-options.batchSize = 5;
 
-train(model, X_train, y_train, options)
+options = Options();
+
+options.nEpochs = 50;
+options.α = 10e-4;
+options.ϵ = 10e-5
+options.batchSize = 16;
+
+# optimizer = GradientDescent(options);
+optimizer = Adam(options,model);
+
+train(model, X_train, y_train, options, optimizer)
 
 println("Real value: ", y_train[1])
 println("Inference value: ", inference(model,X_train[:,1]))
