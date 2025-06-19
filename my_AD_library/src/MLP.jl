@@ -53,15 +53,10 @@ mutable struct Options
 end
 
 function setDefaultAdamOptions(opt::Options)
-    opt.α = 10e-3
+    opt.α = 10e-4
     opt.β1 = 0.9
     opt.β2 = 0.999
     opt.ϵ = 10e-8
-    println("\nOption set:")
-    println("α = 10e-3")
-    println("β1 = 0.9")
-    println("β2 = 0.999")
-    println("ϵ = 10e-8")
     return nothing
 end
 
@@ -118,8 +113,6 @@ mutable struct Adam{T} <:AbstractOptimizer
             
         end)
 
-            #         println(model.weightNodes)
-            # println(opt.V)
         return opt
     end
 end
@@ -154,12 +147,12 @@ function buildModel(type::Type{<:AbstractFloat}, layers::AbstractLayer...)
     return Model(graph,weightNodes,trainXInputNode,trainYInputNode,outputNode,type)
 end
 
-function binaryAccuracy(y,ŷ)
-    return (y>0.5) == (ŷ>0.5) ? 1. : 0.
+function binaryAccuracy(y::AbstractArray,ŷ::AbstractArray)
+    return (y .> 0.5) .== (ŷ .> 0.5)
 end
 
 
-function train(model::Model, X::AbstractArray{T}, y::AbstractArray{T}, options::Options, optimizer::AbstractOptimizer) where T <: AbstractFloat
+function train(model::Model, X::AbstractArray{T}, y::AbstractArray{T}, options::Options, optimizer::AbstractOptimizer, accuracyFun::Function=binaryAccuracy) where T <: AbstractFloat
     if typeof(X[1]) != model.dataType
         X = model.dataType.(X)
     end
@@ -174,28 +167,26 @@ function train(model::Model, X::AbstractArray{T}, y::AbstractArray{T}, options::
     model.yTrainNode.grad = zero(model.yTrainNode.value)
 
     total_loss = 0.
-    # total_accuracy = 0.
+    total_accuracy = 0.
     oredr = topo_sort(model.head)
     nBatches = div(size(X,2),options.batchSize)
-    cols = axes(X,2) # columns of X
     fixGradDim(model,options.batchSize)
     for n in 1:options.nEpochs
         total_loss = 0.
-        # total_accuracy = 0.
+        total_accuracy = 0.
         t = @elapsed begin
             for n in 1:nBatches
-                model.XTrainNode.value = X[:,(n-1)*options.batchSize+1:n*options.batchSize]
-                model.yTrainNode.value = y[(n-1)*options.batchSize+1:n*options.batchSize,:]'
-                forward(model.head)
-                # println("output value: ",size(model.outputNode.value))
-                # println("loss value: ",size(model.head.value))
-                # println("output gradient: ",size(model.outputNode.grad))
-                # println("loss gradient: ",size(model.head.grad))
+                # model.XTrainNode.value = X[:,(n-1)*options.batchSize+1:n*options.batchSize] 
+                model.XTrainNode.value = view(X, :,(n-1)*options.batchSize+1:n*options.batchSize)
+                # model.yTrainNode.value = y[(n-1)*options.batchSize+1:n*options.batchSize,:]'
+                model.yTrainNode.value = view(y,(n-1)*options.batchSize+1:n*options.batchSize,:)'
 
+                forward(model.head)
                 backward(model.head,oredr)
+
                 total_loss += sum(model.head.value)
-                
-                # total_accuracy += model.accuracy(y[col], model.head.value)
+                total_accuracy += sum(accuracyFun(model.yTrainNode.value, model.outputNode.value))
+
                 optimizer.updateWeights!(model)
             end
         end
@@ -215,7 +206,7 @@ function train(model::Model, X::AbstractArray{T}, y::AbstractArray{T}, options::
         #     end
         # end
         # print("Epoch: ", n, "\t time: ", t, "s\t loss: ", total_loss/size(X, 2), "\t acc: ", total_accuracy/size(X, 2), "\n")
-        print("Epoch: ", n, "\t time: ", t, "s\t loss: ", total_loss/size(X, 2), "\n")
+        print("Epoch: ", n, "\t time: ", t, "s\t loss: ", total_loss/(nBatches * options.batchSize), "\t acc: ", total_accuracy/(nBatches * options.batchSize), "\n")
     end
     
 end

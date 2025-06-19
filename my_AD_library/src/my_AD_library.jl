@@ -310,7 +310,7 @@ end
 
 function sigm(x::Node{T}) where T <: AbstractFloat
     newNode = Node(1/(1+ℯ^(-x.value)), [x],function ()
-            newNode.value = 1/(1+ℯ^newNode.parents[1].value)
+            newNode.value = 1/(1+ℯ^(-newNode.parents[1].value))
         end,
          function ()
         if x.hasGrad x.grad += newNode.value * (1-newNode.value) * newNode.grad end
@@ -320,7 +320,7 @@ end
 
 function sigm(x::Node{<:AbstractArray{T}}) where T <: AbstractFloat
     newNode = Node(1 ./ (1 .+ ℯ.^(-x.value)), [x],function ()
-            newNode.value = 1 ./(1 .+ℯ.^newNode.parents[1].value)
+            newNode.value = 1 ./(1 .+ℯ.^(-newNode.parents[1].value))
         end,
          function ()
         if x.hasGrad x.grad .+= newNode.value .* (1 .-newNode.value) .* newNode.grad end
@@ -395,7 +395,7 @@ function myBinaryCrossEntropy(y::Node{T}, ŷ::Node{T}) where T <: AbstractFloat
     return newNode    
 end
 
-function myBinaryCrossEntropy(y::Node{T}, ŷ::Node{<:AbstractVector}) where T <: AbstractFloat
+function myBinaryCrossEntropy(y::Node{T}, ŷ::Node{<:AbstractArray}) where T <: AbstractFloat
     newNode = Node(-(y.value * log(ŷ.value[1]) + (1 - y.value)*log(1 - ŷ.value[1])), [y,ŷ],function ()
             newNode.value = -(newNode.parents[1].value * log(newNode.parents[2].value[1]) + (1 - newNode.parents[1].value)*log(1 - newNode.parents[2].value[1]))
         end,
@@ -405,12 +405,12 @@ function myBinaryCrossEntropy(y::Node{T}, ŷ::Node{<:AbstractVector}) where T <
     return newNode    
 end
 
-function myBinaryCrossEntropy(y::Node{Vector{T}}, ŷ::Node{Vector{T}}) where T <: AbstractFloat
-    newNode = Node(-(y.value .* log.(ŷ.value) .+ (1 .- y.value) .* log.(1 .- ŷ.value)), [y,ŷ],function ()
-            newNode.value = -(newNode.parents[1].value .* log.(newNode.parents[2].value) .+ (1 .- newNode.parents[1].value) .* log.(1 .- newNode.parents[1].value))
+function myBinaryCrossEntropy(y::Node{<:AbstractArray{T}}, ŷ::Node{<:AbstractArray{T}}) where T <: AbstractFloat
+    newNode = Node(-(y.value .* log.(ŷ.value .+ 10e-16) .+ (1 .- y.value) .* log.((1 .- ŷ.value) .+ 10e-16)), [y,ŷ],function ()
+            newNode.value = -(newNode.parents[1].value .* log.(newNode.parents[2].value .+ 10e-16) .+ (1 .- newNode.parents[1].value) .* log.((1 .- newNode.parents[1].value) .+ 10e-16))
         end,
          function ()
-        if ŷ.hasGrad ŷ.grad -= (y.value ./ ŷ.value .- ((1 .- y.value) ./ (1 .- ŷ.value))) end
+        if ŷ.hasGrad ŷ.grad -= (y.value ./ (ŷ.value .+ 10e-16 ) .- ((1 .- y.value) ./ ((1 .- ŷ.value) .+ 10e-16))) end
     end, "BCE")
     return newNode    
 end
