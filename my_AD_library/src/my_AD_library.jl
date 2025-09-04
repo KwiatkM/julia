@@ -31,6 +31,17 @@ mutable struct Node{T}
                         info)
     end
 
+    # data transformations
+    function Node(value::T, parents::Vector{<:Node},forward::Function, info::String) where T
+        return new{T}(  false,
+                        value,
+                        zero(value),
+                        parents,
+                        forward,
+                        () -> nothing,
+                        info)
+    end
+
 end
 
 
@@ -446,6 +457,37 @@ function myMSE(y::Node{<:AbstractArray{T}}, ŷ::Node{<:AbstractArray{T}}) where
 end
 
 # --------------------------------------------------
+#           input transformations
+# --------------------------------------------------
+
+function dataMap(x::Node{T}, mapMatrix::AbstractMatrix) where T <: Integer
+    newNode = Node(mapMatrix[:,x], [x],function ()
+            newNode.value = mapMatrix[:,newNode.parents[1].value]
+        end
+    , "map")
+    return newNode
+end
+
+function dataMap(x::Node{<:AbstractArray{T}}, mapMatrix::AbstractMatrix) where T <: Integer
+    newNode = Node(mapMatrix[:,x.value], [x],function ()
+            newNode.value = mapMatrix[:,newNode.parents[1].value]
+        end
+    , "map")
+    return newNode
+end
+
+
+function myPermutedims(x::Node{<:AbstractArray{T}}, perm::Tuple) where T <: Real
+    newNode = Node(permutedims(x.value,perm), [x],function ()
+            newNode.value = permutedims(newNode.parents[1].value,perm)
+        end
+    , "permute")
+    return newNode
+end
+
+
+
+# --------------------------------------------------
 
 
 
@@ -500,10 +542,25 @@ end
 function reset(head::Node)
     if head.hasGrad
         head.grad = zero(head.grad)
+        if head.nodeType == "max_pool_1d"
+            for p in head.parents
+                reset_skip(p)
+            end
+        else
+            for p in head.parents
+                reset(p)
+            end
+        end
+
+    end
+end
+
+function reset_skip(head::Node)
+    if head.hasGrad
         for p in head.parents
             reset(p)
         end
-    end
+    end  
 end
 
 function forward(head::Node)
