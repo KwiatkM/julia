@@ -1,22 +1,115 @@
 include("MLP.jl")
 
-# mutable struct Embedding <: AbstractLayer
-#     inputSize::Int64
-#     outputSize::Int64
-#     build::Function # builds part of the graph associated with current layer, 
-#                     # takes input type and current graph head, returns new graph head and pointers for weight nodes
+abstract type AbstractDataTransformLayer <: AbstractLayer end
 
-#     function Embedding(inputSize::Int64, outputSize::Int64)
-#         layer = new(inputSize,outputSize,activationFunction, 
-#         function(type::Type{<:AbstractFloat}, graph::Node)
-#             W = Node(randn(type, (layer.outputSize, layer.inputSize)))
-#             b = Node(randn(type, (layer.outputSize,1)))
-#             newGraph = layer.activationFunction(MLPaddBias((W * graph),b))
-#             return newGraph, [W,b]
-#         end)
-#         return layer
-#     end
-# end
+mutable struct Embedding <: AbstractDataTransformLayer
+    inputSize::Int64
+    outputSize::Int64
+    build::Function # builds part of the graph associated with current layer, 
+                    # takes input type and current graph head, returns new graph head and pointers for weight nodes
+    printInfo::Function
+
+    function Embedding(inputSize::Int64, embeddings::AbstractMatrix)
+        layer = new(inputSize, size(embeddings)[1], 
+        function(type::Type{<:AbstractFloat}, graph::Node)
+            newGraph = dataMap(graph, embeddings)
+            return newGraph, []
+        end,
+        function()
+            println("Embedding, ", layer.inputSize," -> ",layer.outputSize, "x", layer.inputSize)
+        end)
+        return layer
+    end
+end
+
+mutable struct PermuteDims <: AbstractDataTransformLayer
+    permutations::Tuple
+    build::Function # builds part of the graph associated with current layer, 
+                    # takes input type and current graph head, returns new graph head and pointers for weight nodes
+    printInfo::Function
+       
+    function PermuteDims(permutations::Tuple)
+        layer = new( permutations,
+        function(type::Type{<:AbstractFloat}, graph::Node)
+            newGraph = myPermutedims(graph,permutations)
+            return newGraph, []
+        end,
+        function()
+            println("PermuteDims, ", layer.permutations)
+        end)
+        return layer
+    end
+end
+
+mutable struct Convolution_1d <: AbstractLayer
+    inputChannels::Int64
+    outputChannels::Int64
+    kernelSize::Int64
+    activationFunction::Function
+    build::Function # builds part of the graph associated with current layer, 
+                    # takes input type and current graph head, returns new graph head and pointers for weight nodes
+    printInfo::Function
+
+    function Convolution_1d(inputChannels::Int64, outputChannels::Int64,kernelSize::Int64, activationFunction::Function)
+        layer = new(inputChannels,outputChannels,kernelSize, activationFunction, 
+        function(type::Type{<:AbstractFloat}, graph::Node)
+
+            kernelNode = Node(randn(type, layer.outputChannels, layer.inputChannels * layer.kernelSize))
+            bias = Node(randn(type, layer.outputChannels,1))
+            step1 = im2col(graph,kernelSize)
+            step2 = kernelNode * step1
+            step3 = MLPaddBias(step2,bias)
+            step4 = layer.activationFunction(step3)
+            newGraph = convResultReshape(step4, size(graph.value)[1] - layer.kernelSize + 1) #second value = data length after convolution
+
+            return newGraph, [kernelNode, bias]
+        end,
+        function()
+            println("Convolution_1d, k=", layer.kernelSize, ", ", layer.inputChannels, " -> ", layer.outputChannels, ", ", layer.activationFunction)
+        end)
+        return layer
+    end
+end
+
+mutable struct MaxPool_1d <: AbstractLayer
+    kernelSize::Int64
+    build::Function # builds part of the graph associated with current layer, 
+                    # takes input type and current graph head, returns new graph head and pointers for weight nodes
+    printInfo::Function
+
+    function MaxPool_1d(kernelSize::Int64)
+        layer = new(kernelSize, 
+        function(type::Type{<:AbstractFloat}, graph::Node)
+            newGraph = max_pool_1d(graph,kernelSize)
+
+            return newGraph, []
+        end,
+        function()
+            println("MaxPool_1d, ", kernelSize)
+        end)
+        return layer
+    end
+end
+
+
+mutable struct myFlatten <: AbstractLayer
+    build::Function # builds part of the graph associated with current layer, 
+                    # takes input type and current graph head, returns new graph head and pointers for weight nodes
+    printInfo::Function
+
+    function myFlatten()
+        layer = new( 
+        function(type::Type{<:AbstractFloat}, graph::Node)
+            newGraph = flatten(graph)
+
+            return newGraph, []
+        end,
+        function()
+            println("Flatten")
+        end)
+        return layer
+    end
+end
 
 
 
@@ -114,6 +207,9 @@ function max_pool_1d(data::Array{T, 3}, kernel_size) where T
 end
 
 function max_pool_1d!(data::Array{T, 3}, mask::Array{T,3}, kernel_size) where T
+    if size(data) != size(mask)
+        mask = zeros(size(data))
+    end
     batch_size = size(data)[3]
     out_data_size = size(data)[1] ÷ kernel_size
     output = Array{T}(undef, out_data_size, size(data)[2], batch_size)
@@ -133,23 +229,17 @@ end
 
 
 function backprop_max_pool_1d!(pool_grad::Array{T, 3}, node_grad::Array{T, 3}) where T
-    aaa = true
     pool_size = size(node_grad)[1] ÷ size(pool_grad)[1]
     for batch in 1:size(pool_grad)[3]
         for channel in 1:size(pool_grad)[2]
             for i in 1:size(pool_grad)[1]
-                if aaa
-                    println(node_grad[(i-1)*pool_size+1:i*pool_size, channel, batch])
-                end
                 node_grad[(i-1)*pool_size+1:i*pool_size, channel, batch] .*= pool_grad[i,channel,batch]
-                if aaa
-                    println(node_grad[(i-1)*pool_size+1:i*pool_size, channel, batch])
-                end
-                aaa = false
             end
         end
     end
 end
+
+
 
 # # A = zeros(5,2,2)
 # A[:,:,1] = [1 2; 3 4; 5 6; 7 8; 9 10]

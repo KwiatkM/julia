@@ -1,7 +1,7 @@
 include("my_AD_library.jl")
 
 
-println("aaaaaaaaaaaaaaaaaaaaaaaaaaa")
+# println("aaaaaaaaaaaaaaaaaaaaaaaaaaa")
 abstract type AbstractLayer end
 abstract type AbstractOptimizer end
 
@@ -11,6 +11,7 @@ mutable struct FullyConnected <: AbstractLayer
     activationFunction::Function
     build::Function # builds part of the graph associated with current layer, 
                     # takes input type and current graph head, returns new graph head and pointers for weight nodes
+    printInfo::Function
 
     function FullyConnected(inputSize::Int64, outputSize::Int64,activationFunction::Function)
         layer = new(inputSize,outputSize,activationFunction, 
@@ -19,6 +20,9 @@ mutable struct FullyConnected <: AbstractLayer
             b = Node(randn(type, (layer.outputSize,1)))
             newGraph = layer.activationFunction(MLPaddBias((W * graph),b))
             return newGraph, [W,b]
+        end,
+        function()
+            println("FullyConnected, ", layer.inputSize, " -> ", layer.outputSize, "  ", layer.activationFunction)
         end)
         return layer
     end
@@ -28,11 +32,15 @@ mutable struct Loss <:AbstractLayer
     fun::Function
     build::Function # adds final loss function to the graph, 
                     # takes trainYInputNode and current graph head, returns new graph head
+    printInfo::Function
 
     function Loss(fun::Function)
         layer = new(fun, function(trainYInputNode::Node, graph::Node)
             newGraph = layer.fun(trainYInputNode,graph)
             return newGraph
+        end,
+        function()
+            println("Loss function: ", layer.fun)
         end)
         return layer
     end
@@ -67,6 +75,7 @@ mutable struct Model
     yTrainNode::Node # input for training expected results
     outputNode::Node # model output
     dataType::Type
+    inputDataType::Type
 end
 
 mutable struct GradientDescent <:AbstractOptimizer
@@ -119,12 +128,21 @@ end
 
 
 
-
-
-
 function buildModel(type::Type{<:AbstractFloat}, layers::AbstractLayer...)
-    trainXInputNode::Node = Node(zeros(type, layers[1].inputSize,1), false)
-    trainYInputNode::Node = Node(zeros(type, 1,1),false)
+    return buildModel(type, type, layers)
+end
+
+
+function buildModel(type::Type{<:AbstractFloat}, inputType::Type, layers::AbstractLayer...)
+    trainXInputNode::Node = Node(ones(inputType, layers[1].inputSize,1), false)
+    trainYInputNode::Node = Node(ones(type, 1,1),false)
+    # if !(layers[1] isa AbstractDataTransformLayer)
+    #     trainXInputNode::Node = Node(zeros(type, layers[1].inputSize,1), false)
+    #     trainYInputNode::Node = Node(zeros(type, 1,1),false)
+    # else
+    #     trainXInputNode::Node = Node(zeros(Int, layers[1].inputSize,1), false)
+    #     trainYInputNode::Node = Node(zeros(type, 1,1),false)
+    # end
     outputNode::Node = Node(type(0),false) # placeholder value
     weightNodes::Vector{Node} = []
     graph::Node = trainXInputNode
@@ -133,18 +151,18 @@ function buildModel(type::Type{<:AbstractFloat}, layers::AbstractLayer...)
         if layer isa Loss
             outputNode = graph
             graph = layer.build(trainYInputNode,graph)
-            println("Loss function: ", layer.fun)
+            layer.printInfo()
             break
         else
             # graph sizes: activationFunction( W[out x in] * x[in x 1] .+ bias[out x 1])
             newGraph, Ws = layer.build(type, graph)
             graph = newGraph
             append!(weightNodes, Ws)
-            println(typeof(layer), ", ", layer.inputSize, " -> ", layer.outputSize, "  ", layer.activationFunction)
+            layer.printInfo()
         end
     end
     
-    return Model(graph,weightNodes,trainXInputNode,trainYInputNode,outputNode,type)
+    return Model(graph,weightNodes,trainXInputNode,trainYInputNode,outputNode,type,inputType)
 end
 
 function binaryAccuracy(y::AbstractArray,ŷ::AbstractArray)
@@ -152,15 +170,15 @@ function binaryAccuracy(y::AbstractArray,ŷ::AbstractArray)
 end
 
 
-function train(model::Model, X::AbstractArray{T}, y::AbstractArray{T}, options::Options, optimizer::AbstractOptimizer, accuracyFun::Function=binaryAccuracy) where T <: AbstractFloat
-    if typeof(X[1]) != model.dataType
-        X = model.dataType.(X)
+function train(model::Model, X::AbstractArray{R}, y::AbstractArray{T}, options::Options, optimizer::AbstractOptimizer, accuracyFun::Function=binaryAccuracy) where {T <: Real,  R <: Real}
+    if typeof(X[1]) != model.inputDataType
+        X = model.inputDataType.(X)
     end
     if typeof(y[1]) != model.dataType
         y = model.dataType.(y)
     end
 
-    model.XTrainNode.value = zeros(model.dataType, size(model.XTrainNode.value,1),options.batchSize)
+    model.XTrainNode.value = zeros(model.inputDataType, size(model.XTrainNode.value,1),options.batchSize)
     model.XTrainNode.grad = zero(model.XTrainNode.value)
 
     model.yTrainNode.value = zeros(model.dataType, options.batchSize,1)
@@ -220,7 +238,7 @@ function inference(model::Model, X::Vector)
 end
 
 function fixGradDim(model::Model, batchSize::Int64)
-    sampleData = zeros(model.dataType, size(model.XTrainNode.value,1),batchSize)
+    sampleData = ones(model.inputDataType, size(model.XTrainNode.value,1),batchSize)
     model.XTrainNode.value = sampleData
     forward(model.head)
     checkGrad(model.head)

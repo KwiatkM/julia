@@ -477,6 +477,8 @@ function dataMap(x::Node{<:AbstractArray{T}}, mapMatrix::AbstractMatrix) where T
 end
 
 
+
+
 function myPermutedims(x::Node{<:AbstractArray{T}}, perm::Tuple) where T <: Real
     newNode = Node(permutedims(x.value,perm), [x],function ()
             newNode.value = permutedims(newNode.parents[1].value,perm)
