@@ -153,10 +153,6 @@ function flatten(x::Node{<:AbstractArray{T}}) where T <: AbstractFloat
     return newNode    
 end
 
-# image size: 5
-# chanels (input): 4
-# batch size: 2
-
 
 # image dim x chanels x batch size (e.g. 130x50x3)
 function im2col(data::Array{T, 3}, kernel_size::Integer, stride::Integer=1) where T
@@ -191,7 +187,6 @@ function im2col_reverseResultDim(data::Array{T, 3}) where T
 
 end
 
-# TODO: zapisać która wartość została wybrana jako największa (do liczenia gradientu) 
 function max_pool_1d(data::Array{T, 3}, kernel_size) where T
     batch_size = size(data)[3]
     out_data_size = size(data)[1] ÷ kernel_size
@@ -238,15 +233,3 @@ function backprop_max_pool_1d!(pool_grad::Array{T, 3}, node_grad::Array{T, 3}) w
         end
     end
 end
-
-
-
-# # A = zeros(5,2,2)
-# A[:,:,1] = [1 2; 3 4; 5 6; 7 8; 9 10]
-
-# R = im2col(A,3)
-# k = randn(3,6)
-
-# t = k * R[1]
-# tt = reshape(t, 4,3,2)
-# ttt = permutedims(tt, (2,1,3))

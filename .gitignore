@@ -5,3 +5,4 @@ my_AD_library/data/imdb*
 W06.ipynb
 sandbox.jl
 my_AD_library/test/.ipynb_checkpoints/*
+*.pdf
